@@ -1,3 +1,14 @@
 known_people/*
 token.pickle
 credentials.json
+
+# Web app
+.env
+backend/*.db
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.venv/
+frontend/node_modules/
+frontend/dist/
+*.pyc
+.DS_Store
