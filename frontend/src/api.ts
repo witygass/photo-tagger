@@ -118,9 +118,11 @@ export const api = {
       request<Job>("/jobs/", { method: "POST", body: JSON.stringify({ folder_id: folderId }) }),
     get: (id: string) => request<Job>(`/jobs/${id}`),
     list: () => request<Job[]>("/jobs/"),
-    results: (id: string, person?: string, page = 1) => {
+    delete: (id: string) => request<{ ok: boolean }>(`/jobs/${id}`, { method: "DELETE" }),
+    results: (id: string, people: string[] = [], exclusive = false, page = 1) => {
       const params = new URLSearchParams({ page: String(page), page_size: "50" });
-      if (person) params.set("person", person);
+      people.forEach((p) => params.append("people", p));
+      if (exclusive) params.set("exclusive", "true");
       return request<Results>(`/jobs/${id}/results?${params}`);
     },
   },

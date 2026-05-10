@@ -5,26 +5,35 @@ import { api, Photo, Results as ResultsType } from "../api";
 export default function Results() {
   const { jobId } = useParams<{ jobId: string }>();
   const [results, setResults] = useState<ResultsType | null>(null);
-  const [activePerson, setActivePerson] = useState<string | null>(null);
+  const [selectedPeople, setSelectedPeople] = useState<string[]>([]);
+  const [exclusive, setExclusive] = useState(false);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
 
-  const load = (person: string | null, p: number) => {
+  const load = (people: string[], excl: boolean, p: number) => {
     if (!jobId) return;
     setLoading(true);
     api.jobs
-      .results(jobId, person ?? undefined, p)
+      .results(jobId, people, excl, p)
       .then(setResults)
       .catch(console.error)
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    load(activePerson, page);
-  }, [jobId, activePerson, page]);
+    load(selectedPeople, exclusive, page);
+  }, [jobId, selectedPeople, exclusive, page]);
 
-  const filterBy = (person: string | null) => {
-    setActivePerson(person);
+  const togglePerson = (person: string) => {
+    setSelectedPeople((prev) =>
+      prev.includes(person) ? prev.filter((p) => p !== person) : [...prev, person]
+    );
+    setPage(1);
+  };
+
+  const clearFilter = () => {
+    setSelectedPeople([]);
+    setExclusive(false);
     setPage(1);
   };
 
@@ -45,11 +54,11 @@ export default function Results() {
 
       {/* Person filter pills */}
       {results.people_in_job.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="flex flex-wrap items-center gap-2 mb-6">
           <button
-            onClick={() => filterBy(null)}
+            onClick={clearFilter}
             className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-              activePerson === null
+              selectedPeople.length === 0
                 ? "bg-indigo-600 text-white"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
@@ -59,9 +68,9 @@ export default function Results() {
           {results.people_in_job.map((person) => (
             <button
               key={person}
-              onClick={() => filterBy(person)}
+              onClick={() => togglePerson(person)}
               className={`px-3 py-1 rounded-full text-sm font-medium transition-colors capitalize ${
-                activePerson === person
+                selectedPeople.includes(person)
                   ? "bg-indigo-600 text-white"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
@@ -69,6 +78,17 @@ export default function Results() {
               {person}
             </button>
           ))}
+          {selectedPeople.length > 0 && (
+            <label className="flex items-center gap-1.5 ml-2 text-sm text-gray-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={exclusive}
+                onChange={(e) => { setExclusive(e.target.checked); setPage(1); }}
+                className="rounded accent-indigo-600"
+              />
+              Only these people
+            </label>
+          )}
         </div>
       )}
 
@@ -76,12 +96,12 @@ export default function Results() {
         <div className="text-center text-gray-400 py-12">Loading...</div>
       ) : results.photos.length === 0 ? (
         <div className="text-center text-gray-400 py-12">
-          {activePerson ? `No photos tagged with "${activePerson}".` : "No photos processed."}
+          {selectedPeople.length > 0 ? `No photos match the selected filter.` : "No photos processed."}
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {results.photos.map((photo) => (
-            <PhotoCard key={photo.id} photo={photo} />
+            <PhotoCard key={photo.id} jobId={jobId!} photo={photo} />
           ))}
         </div>
       )}
@@ -112,7 +132,10 @@ export default function Results() {
   );
 }
 
-function PhotoCard({ photo }: { photo: Photo }) {
+function PhotoCard({ jobId, photo }: { jobId: string; photo: Photo }) {
+  const src = photo.drive_file_id
+    ? `/jobs/${jobId}/photos/${photo.id}/thumbnail`
+    : null;
   return (
     <a
       href={photo.drive_link ?? "#"}
@@ -120,9 +143,9 @@ function PhotoCard({ photo }: { photo: Photo }) {
       rel="noopener noreferrer"
       className="group block rounded-xl overflow-hidden border border-gray-200 hover:border-indigo-400 transition-colors bg-white"
     >
-      {photo.thumbnail_url ? (
+      {src ? (
         <img
-          src={photo.thumbnail_url}
+          src={src}
           alt={photo.file_name ?? "photo"}
           className="w-full aspect-square object-cover group-hover:opacity-90 transition-opacity"
           loading="lazy"

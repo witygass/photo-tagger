@@ -12,10 +12,25 @@ const STATUS_COLOR: Record<string, string> = {
 export default function Dashboard() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const reload = () =>
+    api.jobs.list().then(setJobs).catch(console.error).finally(() => setLoading(false));
 
   useEffect(() => {
-    api.jobs.list().then(setJobs).catch(console.error).finally(() => setLoading(false));
+    reload();
   }, []);
+
+  const deleteJob = async (id: string) => {
+    if (!confirm("Delete this job and all its results?")) return;
+    setDeletingId(id);
+    try {
+      await api.jobs.delete(id);
+      await reload();
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -79,6 +94,13 @@ export default function Dashboard() {
                   View progress →
                 </Link>
               )}
+              <button
+                onClick={() => deleteJob(job.id)}
+                disabled={deletingId === job.id}
+                className="text-sm text-red-500 hover:text-red-700 disabled:opacity-50 shrink-0"
+              >
+                {deletingId === job.id ? "Deleting…" : "Delete"}
+              </button>
             </div>
           ))}
         </div>

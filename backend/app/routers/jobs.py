@@ -3,7 +3,8 @@ import re
 from datetime import datetime
 
 import requests as http_requests
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -210,10 +211,35 @@ async def get_job(
     return _job_to_out(job)
 
 
+@router.delete("/{job_id}")
+async def delete_job(
+    job_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await db.get(Job, job_id)
+    if not job or job.user_id != user.id:
+        raise HTTPException(404, "Job not found")
+    await db.delete(job)
+    await db.commit()
+    return {"ok": True}
+
+
+def _person_match(person: str):
+    from sqlalchemy import or_
+    return or_(
+        TaggedPhoto.people == person,
+        TaggedPhoto.people.like(f"{person},%"),
+        TaggedPhoto.people.like(f"%,{person}"),
+        TaggedPhoto.people.like(f"%,{person},%"),
+    )
+
+
 @router.get("/{job_id}/results", response_model=ResultsOut)
 async def get_results(
     job_id: str,
-    person: str | None = None,
+    people: list[str] = Query(default=[]),
+    exclusive: bool = False,
     page: int = 1,
     page_size: int = 50,
     user: User = Depends(get_current_user),
@@ -224,19 +250,12 @@ async def get_results(
         raise HTTPException(404, "Job not found")
 
     query = select(TaggedPhoto).where(TaggedPhoto.job_id == job_id)
-    if person:
-        from sqlalchemy import or_
-        # Match exact person name as comma-separated token
-        query = query.where(
-            or_(
-                TaggedPhoto.people == person,
-                TaggedPhoto.people.like(f"{person},%"),
-                TaggedPhoto.people.like(f"%,{person}"),
-                TaggedPhoto.people.like(f"%,{person},%"),
-            )
-        )
 
-    # Get all distinct people in this job for the filter UI
+    # Each selected person must appear in the photo (AND logic = combination filter)
+    for person in people:
+        query = query.where(_person_match(person))
+
+    # Get all distinct people across the job (needed for the filter UI and exclusive mode)
     all_photos_result = await db.execute(
         select(TaggedPhoto.people).where(TaggedPhoto.job_id == job_id)
     )
@@ -245,6 +264,11 @@ async def get_results(
         if people_str:
             all_people.update(p.strip() for p in people_str.split(",") if p.strip())
 
+    # Exclusive: exclude photos that contain any recognised person not in the selected set
+    if exclusive and people:
+        for excluded in all_people - set(people):
+            query = query.where(~_person_match(excluded))
+
     # Paginate
     offset = (page - 1) * page_size
     result = await db.execute(
@@ -252,7 +276,6 @@ async def get_results(
     )
     photos = result.scalars().all()
 
-    # Total count for this query
     from sqlalchemy import func
     count_result = await db.execute(
         select(func.count()).select_from(query.subquery())
@@ -276,4 +299,60 @@ async def get_results(
             )
             for p in photos
         ],
+    )
+
+
+@router.get("/{job_id}/photos/{photo_id}/thumbnail")
+async def proxy_thumbnail(
+    job_id: str,
+    photo_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await db.get(Job, job_id)
+    if not job or job.user_id != user.id:
+        raise HTTPException(404, "Job not found")
+
+    result = await db.execute(
+        select(TaggedPhoto).where(TaggedPhoto.id == photo_id, TaggedPhoto.job_id == job_id)
+    )
+    photo = result.scalar_one_or_none()
+    if not photo:
+        raise HTTPException(404, "Photo not found")
+
+    creds_dict = decrypt_token(user.encrypted_token)
+    creds = credentials_from_dict(creds_dict)
+    loop = asyncio.get_event_loop()
+
+    # Try stored thumbnail URL first
+    image_bytes = None
+    if photo.thumbnail_url:
+        image_bytes = await loop.run_in_executor(
+            None, _download_thumbnail_bytes, creds.token, {"thumbnailLink": photo.thumbnail_url}
+        )
+
+    # Fall back to a fresh thumbnailLink from the Drive API
+    if not image_bytes:
+        from googleapiclient.discovery import build as drive_build
+        drive = drive_build("drive", "v3", credentials=creds)
+        try:
+            meta = await loop.run_in_executor(
+                None,
+                lambda: drive.files().get(fileId=photo.drive_file_id, fields="thumbnailLink").execute(),
+            )
+            fresh_url = meta.get("thumbnailLink")
+            if fresh_url:
+                image_bytes = await loop.run_in_executor(
+                    None, _download_thumbnail_bytes, creds.token, {"thumbnailLink": fresh_url}
+                )
+        except Exception:
+            pass
+
+    if not image_bytes:
+        raise HTTPException(404, "Thumbnail not available")
+
+    return Response(
+        content=image_bytes,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=3600"},
     )
