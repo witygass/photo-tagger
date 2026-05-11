@@ -9,10 +9,28 @@ const STATUS_COLOR: Record<string, string> = {
   error: "bg-red-100 text-red-800",
 };
 
+type SortKey = "name" | "date" | "status" | "count";
+
+function sortJobs(jobs: Job[], key: SortKey): Job[] {
+  return [...jobs].sort((a, b) => {
+    switch (key) {
+      case "name":
+        return (a.folder_name ?? a.folder_id).localeCompare(b.folder_name ?? b.folder_id);
+      case "date":
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      case "status":
+        return a.status.localeCompare(b.status);
+      case "count":
+        return b.total - a.total;
+    }
+  });
+}
+
 export default function Dashboard() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("name");
 
   const reload = () =>
     api.jobs.list().then(setJobs).catch(console.error).finally(() => setLoading(false));
@@ -36,12 +54,24 @@ export default function Dashboard() {
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Recent Jobs</h1>
-        <Link
-          to="/select-folder"
-          className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
-        >
-          + Tag a Folder
-        </Link>
+        <div className="flex items-center gap-3">
+          <select
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          >
+            <option value="name">Sort: Folder name</option>
+            <option value="date">Sort: Date</option>
+            <option value="status">Sort: Status</option>
+            <option value="count">Sort: Photo count</option>
+          </select>
+          <Link
+            to="/select-folder"
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+          >
+            + Tag a Folder
+          </Link>
+        </div>
       </div>
 
       {loading ? (
@@ -59,7 +89,7 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="space-y-3">
-          {jobs.map((job) => (
+          {sortJobs(jobs, sortKey).map((job) => (
             <div
               key={job.id}
               className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4"
