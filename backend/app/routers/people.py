@@ -4,8 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.deps import get_current_user, get_face_app
+from app.deps import get_current_user, get_face_app, get_pet_app
 from app.models import KnownPerson, ReferenceEmbedding, User
+from app.pet_recognizer import extract_pet_embedding
 from app.recognizer import extract_embedding, serialize_embedding
 from app.schemas import EmbeddingOut, PersonCreate, PersonDetail, PersonOut
 
@@ -32,6 +33,7 @@ async def list_people(
             PersonOut(
                 id=person.id,
                 name=person.name,
+                species=person.species,
                 embedding_count=len(embeddings),
                 created_at=person.created_at,
             )
@@ -52,12 +54,12 @@ async def create_person(
     if result.scalar_one_or_none():
         raise HTTPException(400, f"Person '{body.name}' already exists")
 
-    person = KnownPerson(user_id=user.id, name=body.name)
+    person = KnownPerson(user_id=user.id, name=body.name, species=body.species)
     db.add(person)
     await db.commit()
     await db.refresh(person)
 
-    return PersonOut(id=person.id, name=person.name, embedding_count=0, created_at=person.created_at)
+    return PersonOut(id=person.id, name=person.name, species=person.species, embedding_count=0, created_at=person.created_at)
 
 
 @router.delete("/{person_id}")
@@ -98,10 +100,16 @@ async def upload_reference_photo(
     if len(image_bytes) > max_bytes:
         raise HTTPException(413, f"File too large (max {settings.MAX_UPLOAD_SIZE_MB}MB)")
 
-    face_app = get_face_app(request)
-    embedding = extract_embedding(face_app, image_bytes)
-    if embedding is None:
-        raise HTTPException(422, "No face detected in this photo. Please upload a clear front-facing photo.")
+    if person.species in ("dog", "cat"):
+        pet_app = get_pet_app(request)
+        embedding = extract_pet_embedding(pet_app, image_bytes, person.species)
+        if embedding is None:
+            raise HTTPException(422, "No pet face detected. Please upload a clear photo showing the pet's face.")
+    else:
+        face_app = get_face_app(request)
+        embedding = extract_embedding(face_app, image_bytes)
+        if embedding is None:
+            raise HTTPException(422, "No face detected in this photo. Please upload a clear front-facing photo.")
 
     ref = ReferenceEmbedding(
         person_id=person.id,

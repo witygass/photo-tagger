@@ -25,6 +25,12 @@ async def lifespan(app: FastAPI):
     face_app.prepare(ctx_id=-1, det_size=(640, 640))
     app.state.face_app = face_app
 
+    # Load pet recognition models (optional — disabled if checkpoints not present)
+    from app.pet_recognizer import PetFaceApp
+    pet_app = PetFaceApp()
+    pet_app.load()
+    app.state.pet_app = pet_app
+
     await resume_stuck_jobs(app)
 
     yield

@@ -5,6 +5,7 @@ export default function People() {
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
+  const [newSpecies, setNewSpecies] = useState("human");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
@@ -26,8 +27,9 @@ export default function People() {
     setCreating(true);
     setError("");
     try {
-      await api.people.create(newName.trim());
+      await api.people.create(newName.trim(), newSpecies);
       setNewName("");
+      setNewSpecies("human");
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create person");
@@ -86,15 +88,24 @@ export default function People() {
         <input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="Person's name (e.g. Tyler)"
+          placeholder="Name (e.g. Tyler, Buddy)"
           className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
         />
+        <select
+          value={newSpecies}
+          onChange={(e) => setNewSpecies(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        >
+          <option value="human">Human</option>
+          <option value="dog">Dog</option>
+          <option value="cat">Cat</option>
+        </select>
         <button
           type="submit"
           disabled={creating || !newName.trim()}
           className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
         >
-          Add Person
+          Add
         </button>
       </form>
       {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
@@ -129,7 +140,14 @@ export default function People() {
                 {person.name[0]}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-gray-900">{person.name}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-900">{person.name}</span>
+                  {person.species !== "human" && (
+                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full capitalize">
+                      {person.species}
+                    </span>
+                  )}
+                </div>
                 <div className="text-sm text-gray-500">
                   {person.embedding_count} reference photo{person.embedding_count !== 1 ? "s" : ""}
                 </div>
@@ -161,7 +179,7 @@ export default function People() {
 
       {people.length > 0 && (
         <p className="text-xs text-gray-400 mt-6">
-          Tip: Add 3–5 clear, front-facing photos per person for best accuracy.
+          Tip: Add 3–5 clear, front-facing photos per person or pet for best accuracy.
         </p>
       )}
     </div>

@@ -33,6 +33,7 @@ class KnownPerson(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    species: Mapped[str] = mapped_column(String, default="human")  # human | dog | cat
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="people")

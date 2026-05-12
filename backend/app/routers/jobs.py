@@ -13,6 +13,7 @@ from app.crypto import credentials_from_dict, decrypt_token
 from app.database import AsyncSessionLocal, get_db
 from app.deps import get_current_user, get_drive_service
 from app.models import Job, KnownPerson, ReferenceEmbedding, TaggedPhoto, User
+from app.pet_recognizer import identify_pets
 from app.recognizer import deserialize_embedding, identify_people
 from app.schemas import JobCreate, JobOut, PhotoOut, ResultsOut
 
@@ -65,7 +66,7 @@ def _download_thumbnail_bytes(token: str, file: dict) -> bytes | None:
         return None
 
 
-async def _run_tagging_job(job_id: str, user_id: str, face_app):
+async def _run_tagging_job(job_id: str, user_id: str, face_app, pet_app):
     async with AsyncSessionLocal() as db:
         job = await db.get(Job, job_id)
         user = await db.get(User, user_id)
@@ -104,19 +105,25 @@ async def _run_tagging_job(job_id: str, user_id: str, face_app):
             job.processed = len(done_ids)
             await db.commit()
 
-            # Load this user's known embeddings from DB once
+            # Load this user's known embeddings from DB once, grouped by species
             emb_result = await db.execute(
                 select(ReferenceEmbedding)
                 .join(KnownPerson)
                 .where(KnownPerson.user_id == user_id)
             )
-            known_embeddings: dict[str, list] = {}
+            human_embeddings: dict[str, list] = {}
+            dog_embeddings: dict[str, list] = {}
+            cat_embeddings: dict[str, list] = {}
             for ref in emb_result.scalars().all():
                 person_result = await db.get(KnownPerson, ref.person_id)
                 if person_result:
-                    known_embeddings.setdefault(person_result.name, []).append(
-                        deserialize_embedding(ref.embedding)
-                    )
+                    emb = deserialize_embedding(ref.embedding)
+                    if person_result.species == "dog":
+                        dog_embeddings.setdefault(person_result.name, []).append(emb)
+                    elif person_result.species == "cat":
+                        cat_embeddings.setdefault(person_result.name, []).append(emb)
+                    else:
+                        human_embeddings.setdefault(person_result.name, []).append(emb)
 
             token = creds.token
 
@@ -134,9 +141,31 @@ async def _run_tagging_job(job_id: str, user_id: str, face_app):
                         identify_people,
                         face_app,
                         image_bytes,
-                        known_embeddings,
+                        human_embeddings,
                         settings.SIMILARITY_THRESHOLD,
                     )
+                    if dog_embeddings:
+                        dogs = await loop.run_in_executor(
+                            None,
+                            identify_pets,
+                            pet_app,
+                            image_bytes,
+                            dog_embeddings,
+                            "dog",
+                            settings.PET_SIMILARITY_THRESHOLD,
+                        )
+                        people = sorted(set(people) | set(dogs))
+                    if cat_embeddings:
+                        cats = await loop.run_in_executor(
+                            None,
+                            identify_pets,
+                            pet_app,
+                            image_bytes,
+                            cat_embeddings,
+                            "cat",
+                            settings.PET_SIMILARITY_THRESHOLD,
+                        )
+                        people = sorted(set(people) | set(cats))
                 else:
                     people = []
 
@@ -195,7 +224,8 @@ async def submit_job(
     await db.refresh(job)
 
     face_app = request.app.state.face_app
-    asyncio.create_task(_run_tagging_job(job.id, user.id, face_app))
+    pet_app = request.app.state.pet_app
+    asyncio.create_task(_run_tagging_job(job.id, user.id, face_app, pet_app))
 
     return _job_to_out(job)
 
@@ -379,5 +409,5 @@ async def resume_stuck_jobs(app) -> None:
 
     for job in stuck:
         asyncio.create_task(
-            _run_tagging_job(job.id, job.user_id, app.state.face_app)
+            _run_tagging_job(job.id, job.user_id, app.state.face_app, app.state.pet_app)
         )

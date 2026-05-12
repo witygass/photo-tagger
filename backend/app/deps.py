@@ -46,3 +46,7 @@ async def get_drive_service(
 
 def get_face_app(request: Request):
     return request.app.state.face_app
+
+
+def get_pet_app(request: Request):
+    return request.app.state.pet_app

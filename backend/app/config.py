@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # App behavior
     INSIGHTFACE_MODEL: str = "buffalo_l"
     SIMILARITY_THRESHOLD: float = 0.45
+    PET_SIMILARITY_THRESHOLD: float = 0.45
     MAX_UPLOAD_SIZE_MB: int = 10
 
     @property

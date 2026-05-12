@@ -24,6 +24,7 @@ export interface User {
 export interface Person {
   id: string;
   name: string;
+  species: string;
   embedding_count: number;
   created_at: string;
 }
@@ -86,8 +87,8 @@ export const api = {
 
   people: {
     list: () => request<Person[]>("/people/"),
-    create: (name: string) =>
-      request<Person>("/people/", { method: "POST", body: JSON.stringify({ name }) }),
+    create: (name: string, species = "human") =>
+      request<Person>("/people/", { method: "POST", body: JSON.stringify({ name, species }) }),
     delete: (id: string) =>
       request<{ ok: boolean }>(`/people/${id}`, { method: "DELETE" }),
     uploadPhoto: (personId: string, file: File) => {

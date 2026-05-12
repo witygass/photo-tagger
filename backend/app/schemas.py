@@ -14,6 +14,7 @@ class UserOut(BaseModel):
 # Known People
 class PersonCreate(BaseModel):
     name: str
+    species: str = "human"  # human | dog | cat
 
 
 class EmbeddingOut(BaseModel):
@@ -25,6 +26,7 @@ class EmbeddingOut(BaseModel):
 class PersonOut(BaseModel):
     id: str
     name: str
+    species: str
     embedding_count: int
     created_at: datetime
 
