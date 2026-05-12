@@ -7,6 +7,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.database import Base, engine
 from app.routers import auth, drive, jobs, people
+from app.routers.jobs import resume_stuck_jobs
 
 
 @asynccontextmanager
@@ -23,6 +24,8 @@ async def lifespan(app: FastAPI):
     )
     face_app.prepare(ctx_id=-1, det_size=(640, 640))
     app.state.face_app = face_app
+
+    await resume_stuck_jobs(app)
 
     yield
 

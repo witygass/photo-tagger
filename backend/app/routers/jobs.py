@@ -96,6 +96,14 @@ async def _run_tagging_job(job_id: str, user_id: str, face_app):
             job.total = len(images)
             await db.commit()
 
+            # Find already-processed photos so a resumed job skips them
+            done_result = await db.execute(
+                select(TaggedPhoto.drive_file_id).where(TaggedPhoto.job_id == job.id)
+            )
+            done_ids: set[str] = set(done_result.scalars().all())
+            job.processed = len(done_ids)
+            await db.commit()
+
             # Load this user's known embeddings from DB once
             emb_result = await db.execute(
                 select(ReferenceEmbedding)
@@ -112,7 +120,10 @@ async def _run_tagging_job(job_id: str, user_id: str, face_app):
 
             token = creds.token
 
-            for i, file in enumerate(images):
+            for file in images:
+                if file["id"] in done_ids:
+                    continue
+
                 image_bytes = await loop.run_in_executor(
                     None, _download_thumbnail_bytes, token, file
                 )
@@ -139,7 +150,8 @@ async def _run_tagging_job(job_id: str, user_id: str, face_app):
                     people=",".join(people),
                 )
                 db.add(photo)
-                job.processed = i + 1
+                done_ids.add(file["id"])
+                job.processed = len(done_ids)
                 job.updated_at = datetime.utcnow()
                 await db.commit()
 
@@ -356,3 +368,16 @@ async def proxy_thumbnail(
         media_type="image/jpeg",
         headers={"Cache-Control": "private, max-age=3600"},
     )
+
+
+async def resume_stuck_jobs(app) -> None:
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Job).where(Job.status.in_(["pending", "running"]))
+        )
+        stuck = result.scalars().all()
+
+    for job in stuck:
+        asyncio.create_task(
+            _run_tagging_job(job.id, job.user_id, app.state.face_app)
+        )
