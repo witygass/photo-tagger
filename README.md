@@ -11,7 +11,7 @@ AI-powered face recognition for your Google Drive photos. Sign in with Google, t
 
 ## Tech stack
 
-- **Backend**: Python / FastAPI, InsightFace (`buffalo_l` model), SQLAlchemy, SQLite (dev) / PostgreSQL (prod)
+- **Backend**: Python / FastAPI, InsightFace (`buffalo_l` model), Pets-Face-Recognition (dog/cat), SQLAlchemy, SQLite (dev) / PostgreSQL (prod)
 - **Frontend**: React, TypeScript, Vite, Tailwind CSS
 - **Auth**: Google OAuth 2.0 (web flow); tokens encrypted at rest with Fernet
 
@@ -60,25 +60,39 @@ GOOGLE_REDIRECT_URI=http://localhost:8000/auth/callback
 
 The remaining values in `.env.example` have working defaults for local development.
 
-### 3. Run the backend
+### 3. Initialise submodules
+
+The pet recognition library is included as a git submodule:
+
+```bash
+git submodule update --init
+```
+
+Then download the pet recognition model checkpoints (~1 GB, hosted on Zenodo):
+
+```bash
+cd backend/third_party/pets_face_recognition && python download_models.py && cd -
+```
+
+If you skip this step the app still works — pet recognition will be silently disabled.
+
+### 4. Run the backend
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r backend/requirements.txt
-cd backend
-uvicorn app.main:app --reload
+PYTHONPATH=backend uvicorn app.main:app --reload --app-dir backend
 ```
 
 The first startup downloads the InsightFace model (~500 MB) and creates the SQLite database automatically.
 
-### 4. Run the frontend
+### 5. Run the frontend
 
 In a separate terminal:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+npm install --prefix frontend
+npm run dev --prefix frontend
 ```
 
 Open [http://localhost:5173](http://localhost:5173).
@@ -88,6 +102,7 @@ Open [http://localhost:5173](http://localhost:5173).
 ## Running with Docker
 
 ```bash
+git submodule update --init
 docker-compose up
 ```
 
