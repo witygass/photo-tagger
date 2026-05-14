@@ -71,7 +71,7 @@ git submodule update --init
 Then download the pet recognition model checkpoints (~1 GB, hosted on Zenodo):
 
 ```bash
-cd backend/third_party/pets_face_recognition && python download_models.py && cd -
+source .venv/bin/activate && cd backend/third_party/pets_face_recognition && python3 download_models.py && cd -
 ```
 
 If you skip this step the app still works — pet recognition will be silently disabled.

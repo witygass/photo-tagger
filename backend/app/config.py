@@ -1,5 +1,8 @@
 import json
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
@@ -15,7 +18,7 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/callback"
 
     # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./photo_tagger.db"
+    DATABASE_URL: str = f"sqlite+aiosqlite:///{_BACKEND_DIR}/photo_tagger.db"
 
     # Frontend
     FRONTEND_URL: str = "http://localhost:5173"
