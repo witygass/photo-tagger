@@ -1,0 +1,3 @@
+[submodule "backend/third_party/pets_face_recognition"]
+	path = backend/third_party/pets_face_recognition
+	url = https://github.com/MarQuisCheshire/Pets-Face-Recognition
