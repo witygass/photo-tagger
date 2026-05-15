@@ -13,3 +13,4 @@ frontend/dist/
 *.pyc
 .DS_Store
 backend/third_party/
+.aider*

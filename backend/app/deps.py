@@ -42,11 +42,3 @@ async def get_drive_service(
         await db.commit()
 
     return build("drive", "v3", credentials=creds)
-
-
-def get_face_app(request: Request):
-    return request.app.state.face_app
-
-
-def get_pet_app(request: Request):
-    return request.app.state.pet_app

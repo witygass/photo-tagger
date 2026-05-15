@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(docker-compose up *)",
+      "Bash(xargs cat *)",
+      "Bash(claude config *)",
+      "Bash(claude whoami *)",
+      "Bash(claude auth *)",
+      "Bash(git -C /Users/tyler.gassman/Repos/photo-tagger status)",
+      "Bash(git *)"
     ]
   }
 }

@@ -16,20 +16,8 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Load InsightFace model once at startup
-    from insightface.app import FaceAnalysis
-    face_app = FaceAnalysis(
-        name=settings.INSIGHTFACE_MODEL,
-        providers=["CPUExecutionProvider"],
-    )
-    face_app.prepare(ctx_id=-1, det_size=(640, 640))
-    app.state.face_app = face_app
-
-    # Load pet recognition models (optional — disabled if checkpoints not present)
-    from app.pet_recognizer import PetFaceApp
-    pet_app = PetFaceApp()
-    pet_app.load()
-    app.state.pet_app = pet_app
+    from app.model_manager import ModelManager
+    app.state.model_manager = ModelManager()
 
     await resume_stuck_jobs(app)
 

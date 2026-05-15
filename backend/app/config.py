@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:4173"]
 
+    # Thumbnail disk cache
+    THUMBNAIL_CACHE_DIR: str = "/tmp/photo_tagger_thumbnails"
+
     # App behavior
     INSIGHTFACE_MODEL: str = "buffalo_l"
     SIMILARITY_THRESHOLD: float = 0.45

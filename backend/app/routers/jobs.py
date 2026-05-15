@@ -1,6 +1,7 @@
 import asyncio
 import re
 from datetime import datetime
+from pathlib import Path
 
 import requests as http_requests
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -29,6 +30,12 @@ IMAGE_MIME_TYPES = {
 }
 
 PREVIEW_SIZE = 1024
+
+
+def _thumbnail_cache_path(drive_file_id: str) -> Path:
+    cache_dir = Path(settings.THUMBNAIL_CACHE_DIR)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / f"{drive_file_id}.jpg"
 
 
 def _list_drive_images(drive, folder_id: str) -> list[dict]:
@@ -66,7 +73,15 @@ def _download_thumbnail_bytes(token: str, file: dict) -> bytes | None:
         return None
 
 
-async def _run_tagging_job(job_id: str, user_id: str, face_app, pet_app):
+async def _run_tagging_job(job_id: str, user_id: str, model_manager):
+    face_app, pet_app = await model_manager.acquire()
+    try:
+        await _process_tagging_job(job_id, user_id, face_app, pet_app)
+    finally:
+        model_manager.release()
+
+
+async def _process_tagging_job(job_id: str, user_id: str, face_app, pet_app):
     async with AsyncSessionLocal() as db:
         job = await db.get(Job, job_id)
         user = await db.get(User, user_id)
@@ -136,6 +151,10 @@ async def _run_tagging_job(job_id: str, user_id: str, face_app, pet_app):
                 )
 
                 if image_bytes:
+                    try:
+                        _thumbnail_cache_path(file["id"]).write_bytes(image_bytes)
+                    except Exception:
+                        pass
                     people = await loop.run_in_executor(
                         None,
                         identify_people,
@@ -223,9 +242,7 @@ async def submit_job(
     await db.commit()
     await db.refresh(job)
 
-    face_app = request.app.state.face_app
-    pet_app = request.app.state.pet_app
-    asyncio.create_task(_run_tagging_job(job.id, user.id, face_app, pet_app))
+    asyncio.create_task(_run_tagging_job(job.id, user.id, request.app.state.model_manager))
 
     return _job_to_out(job)
 
@@ -362,6 +379,18 @@ async def proxy_thumbnail(
     if not photo:
         raise HTTPException(404, "Photo not found")
 
+    # Serve from disk cache if available
+    cache_path = _thumbnail_cache_path(photo.drive_file_id)
+    if cache_path.exists():
+        print(f"returning cached image for {photo.drive_file_id}")
+        return Response(
+            content=cache_path.read_bytes(),
+            media_type="image/jpeg",
+            headers={"Cache-Control": "private, max-age=3600"},
+        )
+    else:
+        print(f"no cached image for {photo.drive_file_id}")
+
     creds_dict = decrypt_token(user.encrypted_token)
     creds = credentials_from_dict(creds_dict)
     loop = asyncio.get_event_loop()
@@ -393,6 +422,11 @@ async def proxy_thumbnail(
     if not image_bytes:
         raise HTTPException(404, "Thumbnail not available")
 
+    try:
+        cache_path.write_bytes(image_bytes)
+    except Exception:
+        pass
+
     return Response(
         content=image_bytes,
         media_type="image/jpeg",
@@ -409,5 +443,5 @@ async def resume_stuck_jobs(app) -> None:
 
     for job in stuck:
         asyncio.create_task(
-            _run_tagging_job(job.id, job.user_id, app.state.face_app, app.state.pet_app)
+            _run_tagging_job(job.id, job.user_id, app.state.model_manager)
         )

@@ -3,10 +3,6 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import torch
-import torch.nn.functional as F
-import torchvision.models
-import torchvision.models.detection
 from PIL import Image
 
 CKPT_BASE = Path(__file__).parent.parent / "third_party/pets_face_recognition/configs/to_reproduce"
@@ -23,6 +19,10 @@ class PetFaceApp:
         self.available = False
 
     def load(self) -> None:
+        import torch
+        import torchvision.models
+        import torchvision.models.detection
+
         kp_path = CKPT_BASE / "keypoint/epoch=14.ckpt"
         dog_path = CKPT_BASE / "dog_fe/epoch=36_head.ckpt"
         cat_path = CKPT_BASE / "cat_fe/epoch=42_head.ckpt"
@@ -69,6 +69,7 @@ class PetFaceApp:
 
 def _detect_and_align(pet_app: PetFaceApp, img_rgb: np.ndarray) -> np.ndarray | None:
     """Detect pet head keypoints and return a 224x224 aligned crop, or None."""
+    import torch
     t = torch.tensor(img_rgb).permute(2, 0, 1).unsqueeze(0).float() / 255
     with torch.no_grad():
         preds = pet_app.detector(t)
@@ -98,6 +99,8 @@ def extract_pet_embedding(pet_app: PetFaceApp, image_bytes: bytes, species: str)
     if not pet_app.available:
         return None
     try:
+        import torch
+        import torch.nn.functional as F
         img_rgb = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
         aligned = _detect_and_align(pet_app, img_rgb)
         if aligned is None:
@@ -122,6 +125,8 @@ def identify_pets(
     if not pet_app.available or not known_embeddings:
         return []
     try:
+        import torch
+        import torch.nn.functional as F
         img_rgb = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
         aligned = _detect_and_align(pet_app, img_rgb)
         if aligned is None:
