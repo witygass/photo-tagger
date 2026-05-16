@@ -2,6 +2,10 @@ known_people/*
 token.pickle
 credentials.json
 
+# OS core dumps
+core
+core.*
+
 # Web app
 .env
 backend/*.db
