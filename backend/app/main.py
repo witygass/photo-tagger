@@ -40,8 +40,8 @@ app.add_middleware(
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.SECRET_KEY,
-    same_site="lax",
-    https_only=False,  # Set True in production with HTTPS
+    same_site=settings.SAME_SITE,
+    https_only=settings.HTTPS_ONLY,
 )
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])

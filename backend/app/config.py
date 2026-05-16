@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:4173"]
 
+    # Session cookie behavior (set both to True in production)
+    HTTPS_ONLY: bool = False
+    SAME_SITE: str = "lax"  # Use "none" in production (required for cross-origin cookies)
+
     # Thumbnail disk cache
     THUMBNAIL_CACHE_DIR: str = "/tmp/photo_tagger_thumbnails"
 

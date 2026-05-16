@@ -1,4 +1,4 @@
-const BASE = "";
+const BASE = import.meta.env.VITE_API_URL ?? "";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -94,7 +94,7 @@ export const api = {
     uploadPhoto: (personId: string, file: File) => {
       const form = new FormData();
       form.append("photo", file);
-      return fetch(`/people/${personId}/photos`, {
+      return fetch(`${BASE}/people/${personId}/photos`, {
         method: "POST",
         credentials: "include",
         body: form,
