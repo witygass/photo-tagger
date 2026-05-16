@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,6 +9,8 @@ from app.config import settings
 from app.database import Base, engine
 from app.routers import auth, drive, jobs, people
 from app.routers.jobs import resume_stuck_jobs
+
+logging.basicConfig(level=logging.INFO)
 
 
 @asynccontextmanager

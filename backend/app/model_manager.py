@@ -56,7 +56,9 @@ class ModelManager:
             await asyncio.sleep(_DORMANCY_SECONDS)
             if self._active == 0:
                 loop = asyncio.get_running_loop()
+                logger.info('unloading ML models')
                 await loop.run_in_executor(None, self._unload)
+                logger.info('ML Models unloaded')
         except asyncio.CancelledError:
             pass
 
