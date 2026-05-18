@@ -6,6 +6,9 @@ credentials.json
 core
 core.*
 
+# TypeScript compiler temporary cache files
+*.tsbuildinfo
+
 # Web app
 .env
 backend/*.db
